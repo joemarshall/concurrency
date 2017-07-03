@@ -1,6 +1,9 @@
+// test of matrix multiply with threads
+
 #include<stdio.h>
 #include <time.h>
 #include<math.h>
+// this is for mingw, for other compilers you may nead #include<thread> instead
 #include"threads.h"
 const int DIM=1024;
 const int NUM_THREADS=8;
@@ -9,6 +12,9 @@ float*a;
 float *b;
 float *c;
 
+// some functions to make and check matrix multiplications
+// n.b. this just makes a single matrix with numbers in, and an 
+// identity matrix - it isn't a very good matrix test
 void makeMatrices( float*a,float *b,const int DIM)
 {
 	for(int c=0;c<DIM;c++)
@@ -33,6 +39,9 @@ void checkMatrix(float *a,float *c,const int DIM)
 }
 
 
+// this thread function just calculates the output value for all cells in a 
+// range of columns multiple threads are made to do the 
+// full matrix multiply
 void multiplyThread(int colStart,int colEnd)
 {
 	if(colEnd>DIM)
@@ -62,12 +71,14 @@ int main()
 	printf("go\n");
 	double cpu_time_used;
 
-	// basic matrix multiply
+	// basic matrix multiply - in the single main thread
 	start = clock();
+	// cycle round columns and rows of the output matrix 
 	for(int row=0;row<DIM;row++)
 	{
 	  for(int col=0;col<DIM;col++)
 	  {
+		// calculate one output cell
 		c[row+col*DIM]=0;
 		for(int cell=0;cell<DIM;cell++)
 		{
@@ -76,6 +87,7 @@ int main()
 	  }
 	}
 	end = clock();
+	// time how long it takes
 	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 	printf("done standard version %f\n",cpu_time_used);
 	checkMatrix(a,c,DIM);	
@@ -84,25 +96,29 @@ int main()
 	start = clock();
 	int start_col=0;
 	int end_col=0;
+	// multiply matrix in thread - this launches all the threads
+	// each of which calculates a subset of the columns of the 
+	// output matrix
 	for(int c=0;c<NUM_THREADS;c++)
 	{
 		end_col=((c+1)*DIM)/NUM_THREADS;
 		// launch a thread to do just some of the columns
 		std::thread *t =new std::thread(std::bind(multiplyThread,start_col,end_col));
-		//std::thread *t =new std::thread(multiplyThread,start_col,end_col,a,b,c); 
 		threads[c]=t;
 		start_col=end_col;
 	}
-	// wait for all threads to finish
+	// then we wait for all threads to finish
 	for(int c=0;c<NUM_THREADS;c++)
 	{
 		threads[c]->join();
 	}
-	// done
+	// once all threads are finished, we are done
 	end = clock();
+	// time how long it takes
 	cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
 	printf("done threaded multiply on %d threads %f\n",NUM_THREADS,cpu_time_used);
 	checkMatrix(a,c,DIM);	
+	// don't forget to delete the allocated memory
 	delete a;
 	delete b;
 	delete c;
